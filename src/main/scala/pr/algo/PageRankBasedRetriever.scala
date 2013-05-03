@@ -40,6 +40,8 @@ object PageRankBasedRetriever extends Logging {
   def main(args: Array[String]) {
     log.info("Preparing page rank")
 
+    val iter = 10
+
     //these are global to all methods
     val searchScores = getSearchScores()
     val tMatrix = getTransitionMatrix()
@@ -49,8 +51,10 @@ object PageRankBasedRetriever extends Logging {
     val N = tMatrix.cols
 
     val pVector = DenseVector.fill[Double](N)(1.0 / N)
-        val gpr = new PageRankPowerMethod(tMatrix, pVector, 0.15, "gpr") //1-alpha is 0.85
-        val gpRanks = gpr.getResults(20, 0.01, false)
+    val gpr = new PageRankPowerMethod(tMatrix, pVector, 0.15, "gpr") //1-alpha is 0.85
+    val gpRanks = gpr.getResults(iter, 0.01, false).sortBy(_._1)
+
+    writeRanks("GPR-10",gpRanks)
 
     val dReader = new DistributionReader()
     val qDistro = dReader.fromFile(new File("data/query-topic-distro.txt")) //(uid,qid)
@@ -61,12 +65,15 @@ object PageRankBasedRetriever extends Logging {
     val topicalRanks = topicVectors.map {
       case (topic, topicVector) => {
         val tpr = new PageRankPowerMethod(tMatrix, topicVector, 0.15, "tpr")
-        topic -> tpr.getResults(20, 0.01, false).sortBy(_._1)
+        topic -> tpr.getResults(iter, 0.01, false).sortBy(_._1)
       }
     }
 
-    val tsprWithPtspr = userQueryPairs.foldLeft((new Array[(Int, Double)](N),new Array[(Int, Double)](N))) {
-      case ((combinedTopicalRanks,combinedPersonalRanks), (uid, qid)) => {
+    val u2q1Qtspr = new Array[(Int, Double)](N)
+    val u2q1Ptspr = new Array[(Int, Double)](N)
+
+    val tsprWithPtspr = userQueryPairs.foldLeft((new Array[(Int, Double)](N), new Array[(Int, Double)](N))) {
+      case ((combinedTopicalRanks, combinedPersonalRanks), (uid, qid)) => {
         topicalRanks.foreach {
           case (topic, topicalRank) => topicalRank.foreach {
             case (docId, rank) => {
@@ -80,33 +87,44 @@ object PageRankBasedRetriever extends Logging {
               val personalContribution = rank * uDistro(uid)(qid)(topic)
               val personalCombinedRank = if (oldPersonTuple != null) oldPersonTuple._2 + personalContribution else personalContribution
 
+
+              if (uid == 2 && qid == 1){
+                u2q1Qtspr(docId - 1) = (docId,topicContribution)
+                u2q1Ptspr(docId - 1) = (docId,personalContribution)
+              }
+
               combinedTopicalRanks(docId - 1) = (docId, topicalCombinedRank)
               combinedPersonalRanks(docId - 1) = (docId, personalCombinedRank)
             }
           }
         }
-        (combinedTopicalRanks,combinedPersonalRanks)
+        (combinedTopicalRanks, combinedPersonalRanks)
       }
     }
+
+    writeRanks("QTSPR-U2Q1-10",u2q1Qtspr)
+    writeRanks("PTSPR-U2Q1-10",u2q1Ptspr)
 
     val tsprRankScores = tsprWithPtspr._1
     val qtsprRankScores = tsprWithPtspr._2
 
-    val allRanks = List((gpRanks,"gpr"),(tsprRankScores,"tspr"),(qtsprRankScores,"qtspr"))
+    val allRanks = List((gpRanks, "gpr"), (tsprRankScores, "tspr"), (qtsprRankScores, "qtspr"))
 
     val weightings = List(new NoSearchWeighting(), new LinearWeighting(0.1))
 
     //compute result for different ranks and different weights
-    allRanks.foreach{case (ranks,rankName)=> {
-      val rankMap = ranks.foldLeft(Map[Int, Double]()) {
-        case (docId2Rank, (docId, rank)) => {
-          docId2Rank + (docId -> rank)
+    allRanks.foreach {
+      case (ranks, rankName) => {
+        val rankMap = ranks.foldLeft(Map[Int, Double]()) {
+          case (docId2Rank, (docId, rank)) => {
+            docId2Rank + (docId -> rank)
+          }
         }
+        weightings.foreach(weighting => {
+          run(rankMap, weighting, searchScores, rankName + "_" + weighting.name)
+        })
       }
-      weightings.foreach(weighting => {
-        run(rankMap, weighting, searchScores, rankName + "_" + weighting.name)
-      })
-    }}
+    }
   }
 
   def buildTopicalPreferenceVectors(N: Int) = {
@@ -139,6 +157,18 @@ object PageRankBasedRetriever extends Logging {
       pw.close()
     }
   }
+
+  def writeRanks(filename:String, ranks:Array[(Int,Double)]) = {
+     val pw = new PrintWriter(new File("sample/zhengzhl-"+ filename+".txt"))
+     try{
+       ranks.foreach{case (docId,rank)=>{
+         pw.write(docId+"-"+rank+"\n")
+       }}
+     }finally {
+      pw.close()
+    }
+  }
+
 
   def getSearchScores() = {
     val scoreReader = new SearchScoreReader()
