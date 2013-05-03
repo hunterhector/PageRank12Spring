@@ -32,7 +32,6 @@ class PageRankPowerMethod(transitionMatrix: CSCMatrix[Double], preferenceVector:
   }
 
   val teleportVector = teleportVectorBuilder.result()
-  println (teleportVector.sum)
 
   val scaledTransitionMatrix = elementWiseProduct(transitionMatrix,1-alpha)
 
@@ -79,7 +78,6 @@ class PageRankPowerMethod(transitionMatrix: CSCMatrix[Double], preferenceVector:
       log.debug("Iteration : %d".format(i))
       val newRank = step(oldRank)
       oldRank = newRank
-      println(oldRank.sum)
     }
 
     (oldRank.toDenseMatrix.toDenseVector).toArray
@@ -97,13 +95,5 @@ object PageRankPowerMethod {
     val ranks = pr.getResults(100,0.01,false)
 
     println("Total %d results retrieved".format(ranks.length))
-
-    ranks.take(10).foreach(
-     r=>println(r)
-    )
-
-    ranks.reverse.take(10).foreach(
-      r=>println(r)
-    )
   }
 }

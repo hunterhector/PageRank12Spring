@@ -49,8 +49,8 @@ object PageRankBasedRetriever extends Logging {
     val N = tMatrix.cols
 
     val pVector = DenseVector.fill[Double](N)(1.0 / N)
-    //    val gpr = new PageRankPowerMethod(tMatrix, pVector, 0.15, "gpr") //1-alpha is 0.85
-    //    val gpRanks = gpr.getResults(20, 0.01, false)
+        val gpr = new PageRankPowerMethod(tMatrix, pVector, 0.15, "gpr") //1-alpha is 0.85
+        val gpRanks = gpr.getResults(20, 0.01, false)
 
     val dReader = new DistributionReader()
     val qDistro = dReader.fromFile(new File("data/query-topic-distro.txt")) //(uid,qid)
@@ -65,37 +65,48 @@ object PageRankBasedRetriever extends Logging {
       }
     }
 
-    val tsprRankScores = userQueryPairs.foldLeft(new Array[(Int, Double)](N)) {
-      case (combinedTopicalRanks, (uid, qid)) => {
+    val tsprWithPtspr = userQueryPairs.foldLeft((new Array[(Int, Double)](N),new Array[(Int, Double)](N))) {
+      case ((combinedTopicalRanks,combinedPersonalRanks), (uid, qid)) => {
         topicalRanks.foreach {
           case (topic, topicalRank) => topicalRank.foreach {
             case (docId, rank) => {
-              val oldTuple = combinedTopicalRanks(docId - 1)
+              //accumulate topical results
+              val oldTopicTuple = combinedTopicalRanks(docId - 1)
               val topicContribution = rank * qDistro(uid)(qid)(topic)
-              val combinedRank = if (oldTuple == null) oldTuple._2 + topicContribution else topicContribution
-              combinedTopicalRanks(docId - 1) = (docId, combinedRank)
+              val topicalCombinedRank = if (oldTopicTuple != null) oldTopicTuple._2 + topicContribution else topicContribution
+
+              //accumulate personal results
+              val oldPersonTuple = combinedPersonalRanks(docId - 1)
+              val personalContribution = rank * uDistro(uid)(qid)(topic)
+              val personalCombinedRank = if (oldPersonTuple != null) oldPersonTuple._2 + personalContribution else personalContribution
+
+              combinedTopicalRanks(docId - 1) = (docId, topicalCombinedRank)
+              combinedPersonalRanks(docId - 1) = (docId, personalCombinedRank)
             }
           }
         }
-        combinedTopicalRanks
+        (combinedTopicalRanks,combinedPersonalRanks)
       }
     }
 
-    val allRanks = List(tsprRankScores)
+    val tsprRankScores = tsprWithPtspr._1
+    val qtsprRankScores = tsprWithPtspr._2
 
-    val weightings = List(new NoSearchWeighting())
+    val allRanks = List((gpRanks,"gpr"),(tsprRankScores,"tspr"),(qtsprRankScores,"qtspr"))
+
+    val weightings = List(new NoSearchWeighting(), new LinearWeighting(0.1))
 
     //compute result for different ranks and different weights
-    allRanks.foreach(ranks => {
+    allRanks.foreach{case (ranks,rankName)=> {
       val rankMap = ranks.foldLeft(Map[Int, Double]()) {
         case (docId2Rank, (docId, rank)) => {
           docId2Rank + (docId -> rank)
         }
       }
       weightings.foreach(weighting => {
-        run(rankMap, weighting, searchScores, "tpr" + weighting.name)
+        run(rankMap, weighting, searchScores, rankName + "_" + weighting.name)
       })
-    })
+    }}
   }
 
   def buildTopicalPreferenceVectors(N: Int) = {
