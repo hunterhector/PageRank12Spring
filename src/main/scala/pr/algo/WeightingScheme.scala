@@ -7,5 +7,6 @@ package pr.algo
  * Time: 10:54 PM
  */
 trait WeightingScheme {
-    def getWeight(prScore:Double,searchScore:Double):Double
+    def name:String
+    def getWeightedScore(prScore:Double,searchScore:Double):Double
 }

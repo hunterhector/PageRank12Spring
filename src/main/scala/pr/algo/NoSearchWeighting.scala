@@ -7,7 +7,9 @@ package pr.algo
  * Time: 10:57 PM
  */
 class NoSearchWeighting extends  WeightingScheme{
-  def getWeight(prScore: Double, searchScore: Double):Double = {
+  def getWeightedScore(prScore: Double, searchScore: Double):Double = {
     return prScore
   }
+
+  def name = "ns"
 }

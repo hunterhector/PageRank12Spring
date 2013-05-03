@@ -18,8 +18,8 @@ class SearchScoreReader extends Logging {
 
     val resultFiles = scoreDir.listFiles()
 
-    resultFiles.foldLeft(Map[(Int,Int),Map[Int,Double]]())((query2Scores,resultFile)=>{
-       val idPart = resultFile.getName.split(".")(0)
+    resultFiles.foldLeft(Map[(Int,Int),List[(Int,Double)]]())((query2Scores,resultFile)=>{
+       val idPart = resultFile.getName.split("\\.")(0)
        val ids = idPart.split("-")
        val uid = ids(0).toInt
        val qid = ids(1).toInt
@@ -28,12 +28,12 @@ class SearchScoreReader extends Logging {
     })
   }
 
-  private def parseScores(scoreFile:File):Map[Int,Double]={
-    Source.fromFile(scoreFile).getLines().foldLeft(Map[Int,Double]())((scoreMap,line)=>{
+  private def parseScores(scoreFile:File):List[(Int,Double)]={
+    Source.fromFile(scoreFile).getLines().foldLeft(List[(Int,Double)]())((scoreList,line)=>{
       val parts = line.split(" ")
       val docId = parts(2).toInt
       val score = parts(4).toDouble
-      scoreMap + (docId -> score)
+      (docId,score) :: scoreList
     })
   }
 }

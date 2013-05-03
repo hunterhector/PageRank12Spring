@@ -2,7 +2,7 @@ package pr.io
 
 import org.eintr.loglady.Logging
 import java.io.File
-import breeze.linalg.CSCMatrix
+import breeze.linalg.{DenseMatrix, CSCMatrix}
 import scala.io.Source
 
 /**
@@ -19,12 +19,12 @@ import scala.io.Source
  */
 class TransitionMatrixReader() extends Logging {
 
-  def fromFile(transitionFile: File) = {
+  def fromFile(transitionFile: File,base:Int) = {
     val allPairsAndMax = Source.fromFile(transitionFile).getLines().foldLeft((List[(Int, Int)](), Map[Int, Int](), 0)) {
       case ((oldlist, outdegrees, oldmax), line) => {
         val parts = line.split(" ")
-        val from = parts(0).toInt-1
-        val to = parts(1).toInt-1
+        val from = parts(0).toInt - base
+        val to = parts(1).toInt - base
         val tuple = (from, to)
         val oldOutDegree = outdegrees.getOrElse(from, 0)
 
@@ -49,28 +49,37 @@ class TransitionMatrixReader() extends Logging {
 }
 
 object TransitionMatrixReader {
-  def main(args:Array[String]){
+  def main(args: Array[String]) {
     //just test a little bit
     val reader = new TransitionMatrixReader()
-    val tMatrix = reader.fromFile(new File("data/sample.txt"))
+    val tMatrix = reader.fromFile(new File("data/transition.txt"),1)
 
-    println ("Read a matrix of size : %d x %d".format(tMatrix.rows,tMatrix.cols))
+    println("Read a matrix of size : %d x %d".format(tMatrix.rows, tMatrix.cols))
 
     val colPtrs = tMatrix.colPtrs
     val tData = tMatrix.data
     val tRows = tMatrix.rowIndices
 
-    val colRanges = colPtrs.slice(0,tMatrix.cols).zip(colPtrs.slice(1,tMatrix.cols+1))
+    val colRanges = colPtrs.slice(0, tMatrix.cols).zip(colPtrs.slice(1, tMatrix.cols + 1))
 
     var record = 0
-    colRanges.zipWithIndex.foreach{case((start,end),idx) =>{
-      println("Column # : %d".format(idx))
-      tData.slice(start,end).foreach(t=>print(t))
-      println()
-      println("Hope you are stochastic : %f".format(tData.slice(start,end).sum))
-      println("Check out degree : %d".format(end-start))
-      record += (end-start)
-    }}
+    colRanges.zipWithIndex.foreach {
+      case ((start, end), idx) => {
+        val colSum = tData.slice(start, end).sum
+
+        println("Column #%d, outdegree %d, score %f".format(idx+1,(end-start),tData(start)))
+
+        if ((1 - colSum).abs > 0.0001) {
+          if (end - start != 0) {
+            println("Not stochastic !")
+            println("Column # : %d".format(idx + 1))
+            println("Column sum is : %f".format(colSum))
+            println("Out degree is : %d".format(end - start))
+          }
+        }
+        record += (end - start)
+      }
+    }
 
     println("Record read : %d".format(record))
   }

@@ -10,10 +10,14 @@ import scala.io.Source
  * Time: 4:01 PM
  */
 class DocumentClassReader {
-    def fromFile(docTopicFile:File){
-         Source.fromFile(docTopicFile).getLines().foldLeft(Map[Int,Int]())(((doc2Topic,line) =>{
+    def fromFile(docTopicFile:File) = {
+         Source.fromFile(docTopicFile).getLines().foldLeft(Map[Int,List[Int]]())(((topic2Doc,line) =>{
              val parts = line.split(" ")
-             doc2Topic + (parts(0).toInt -> parts(1).toInt)
+             val docId = parts(0).toInt
+             val topic = parts(1).toInt
+             val docList = topic2Doc.getOrElse(topic,List[Int]())
+             val newDocList = docId::docList
+             topic2Doc + (topic -> newDocList)
          }))
     }
 }

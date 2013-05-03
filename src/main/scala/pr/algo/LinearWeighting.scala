@@ -18,7 +18,9 @@ class LinearWeighting(w:Double) extends WeightingScheme{
    * @param searchScore
    * @return
    */
-  def getWeight(prScore: Double, searchScore: Double):Double = {
+  def getWeightedScore(prScore: Double, searchScore: Double):Double = {
       return w*prScore + (1-w)*searchScore
   }
+
+  def name = "ws"
 }

@@ -11,7 +11,7 @@ import org.eintr.loglady.Logging
  * Date: 4/30/13
  * Time: 9:44 PM
  */
-class PageRankPowerMethod(transitionMatrix: CSCMatrix[Double], preferenceVector: CSCMatrix[Double], alpha: Double)extends Logging {
+class PageRankPowerMethod(transitionMatrix: CSCMatrix[Double], preferenceVector: DenseVector[Double], alpha: Double, val name:String)extends Logging {
   val N = transitionMatrix.cols
 
   val rankVectorBuilder = new CSCMatrix.Builder[Double](N, 1)
@@ -20,117 +20,90 @@ class PageRankPowerMethod(transitionMatrix: CSCMatrix[Double], preferenceVector:
     rankVectorBuilder.add(i, 0, 1.0 / N)
   }
 
+  //construct a uniform start vector
   val rankVector = rankVectorBuilder.result
 
-  val builder = new VectorBuilder[Double](N,0)
+  val beta = 0.1
 
-  for ( i <- 0 until N){
-    builder.add(i,0.0)
+  val teleportVectorBuilder = new CSCMatrix.Builder[Double](N,1)
+
+  for (i <- 0 until N){
+    teleportVectorBuilder.add(i,0,alpha*(beta/N + (1-beta)*preferenceVector(i)))
   }
 
-  val scaledPreferenceVector = elementWiseProd(preferenceVector, alpha)
+  val teleportVector = teleportVectorBuilder.result()
+  println (teleportVector.sum)
 
-  val scaledTransitionMatrix = elementWiseProd(transitionMatrix, (1 - alpha))
+  val scaledTransitionMatrix = elementWiseProduct(transitionMatrix,1-alpha)
 
-  def step(oldRank: CSCMatrix[Double]) = {
-    val mul = scaledTransitionMatrix * oldRank
-    val nextRank = elementWiseMatrixSum(mul, scaledPreferenceVector)
-    nextRank
+  def elementWiseProduct(m:CSCMatrix[Double],a:Double) ={
+      val builder = new CSCMatrix.Builder[Double](m.rows, m.cols)
+      m.activeIterator.foreach{case ((r,c),v)=>{
+        builder.add(r,c,a*v)
+      }}
+      builder.result()
+  }
+
+  def elementWiseSum(m:CSCMatrix[Double],n:CSCMatrix[Double]) = {
+    if (m.cols != n.cols || m.rows != n.rows){
+      throw new IllegalArgumentException("Wrong matrix indices!")
+      println(m.cols+" "+m.rows+" "+n.cols+" "+n.rows)
+    }
+    val builder = new CSCMatrix.Builder[Double](m.rows, m.cols)
+
+    m.iterator.zip(n.iterator).foreach{case (((rm,cm),vm),((rn,cn),vn)) =>{
+
+      builder.add(rm,cm,vm+vn)
+    }}
+    builder.result()
+  }
+
+  def getResults(maxIter:Int, minDelta: Double, sorted:Boolean) = {
+    val ranks = stepUntil(maxIter,minDelta)
+
+    val rankWithDocId = ranks.zipWithIndex.map{case (rank,idx) => (idx+1,rank)}
+
+    if (sorted)
+      rankWithDocId.sortBy(_._2).reverse
+    else
+      rankWithDocId
+  }
+
+  def step(ranks:CSCMatrix[Double]) = {
+    elementWiseSum(scaledTransitionMatrix * ranks , teleportVector)
   }
 
   def stepUntil(maxIter:Int,minDelta:Double) = {
     var oldRank = rankVector
     for (i <- 0 until maxIter) {
       log.debug("Iteration : %d".format(i))
-//      println(oldRank)
       val newRank = step(oldRank)
       oldRank = newRank
+      println(oldRank.sum)
     }
 
-    val colPtrs = oldRank.colPtrs
-    val start = colPtrs(0)
-    val end = colPtrs(1)
-
-    val rankArray = oldRank.data.slice(start,end)
-    val rowArray = oldRank.rowIndices.slice(start,end).map(r=>r+1)
-
-    rowArray.zip(rankArray).sortBy(_._2).reverse
+    (oldRank.toDenseMatrix.toDenseVector).toArray
   }
-
-  def elementWiseProd(m: CSCMatrix[Double], a: Double): CSCMatrix[Double] = {
-    val resBuilder = new CSCMatrix.Builder[Double](m.rows, m.cols)
-    m.activeIterator.foreach {
-      case ((row, col), v) => {
-        resBuilder.add(row, col, v * a)
-      }
-    }
-
-    resBuilder.result()
-  }
-
-  def elementWiseMatrixMinus(m: CSCMatrix[Double], n: CSCMatrix[Double]): CSCMatrix[Double] = {
-    val mr = m.rows
-    val mc = m.cols
-    val nr = n.rows
-    val nc = n.cols
-
-    if (mr != nr || mc != nc) {
-      throw new IllegalArgumentException("Different dimension in matrix")
-    }
-
-    val resBuilder = new CSCMatrix.Builder[Double](mr, mc)
-    m.activeIterator.zip(n.activeIterator).foreach {
-      case (((mRow, mCol), mv), ((nRow, nCol), nv)) => {
-        resBuilder.add(mRow, mCol, mv - nv)
-      }
-    }
-
-    resBuilder.result()
-  }
-
-  def elementWiseMatrixSum(m: CSCMatrix[Double], n: CSCMatrix[Double]): CSCMatrix[Double] = {
-    val mr = m.rows
-    val mc = m.cols
-    val nr = n.rows
-    val nc = n.cols
-
-    if (mr != nr || mc != nc) {
-      throw new IllegalArgumentException("Different dimension in matrix")
-    }
-
-    val resBuilder = new CSCMatrix.Builder[Double](mr, mc)
-    m.activeIterator.zip(n.activeIterator).foreach {
-      case (((mRow, mCol), mv), ((nRow, nCol), nv)) => {
-        resBuilder.add(mRow, mCol, mv + nv)
-      }
-    }
-
-    resBuilder.result()
-  }
-
 }
 
 object PageRankPowerMethod {
-
   def main(args: Array[String]) {
-
     val tReader = new TransitionMatrixReader()
-    val tMatrix = tReader.fromFile(new File("data/transition.txt"))
+    val tMatrix = tReader.fromFile(new File("data/transition.txt"),1)
 
     val N = tMatrix.cols
+    val pVector = DenseVector.fill[Double](N)(1.0/N)
+    val pr = new PageRankPowerMethod(tMatrix, pVector, 0.15,"gpr") //1-alpha is 0.85
+    val ranks = pr.getResults(100,0.01,false)
 
-    val preferenceVectorBuilder = new CSCMatrix.Builder[Double](N, 1)
-
-    for (i <- 0 until N) {
-      preferenceVectorBuilder.add(i, 0, 1.0 / N)
-    }
-
-    val pVector = preferenceVectorBuilder.result
-    val pr = new PageRankPowerMethod(tMatrix, pVector, 0.15) //1-alpha is 0.85
-    val ranks = pr.stepUntil(20,0.01)
+    println("Total %d results retrieved".format(ranks.length))
 
     ranks.take(10).foreach(
      r=>println(r)
+    )
+
+    ranks.reverse.take(10).foreach(
+      r=>println(r)
     )
   }
 }
