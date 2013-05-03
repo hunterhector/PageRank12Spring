@@ -12,6 +12,10 @@ import breeze.linalg.DenseVector
  * Date: 5/1/13
  * Time: 10:53 PM
  */
+
+/**
+ * The main runner that combine everything
+ */
 class PageRankBasedRetriever() extends Logging {
 
   def retreive(ws: WeightingScheme, searchScoresByQuery: Map[(Int, Int), List[(Int, Double)]], rankScores: Map[Int, Double], runId: String) = {
@@ -106,11 +110,11 @@ object PageRankBasedRetriever extends Logging {
     writeRanks("PTSPR-U2Q1-10",u2q1Ptspr)
 
     val tsprRankScores = tsprWithPtspr._1
-    val qtsprRankScores = tsprWithPtspr._2
+    val ptsprRankScores = tsprWithPtspr._2
 
-    val allRanks = List((gpRanks, "gpr"), (tsprRankScores, "tspr"), (qtsprRankScores, "qtspr"))
+    val allRanks = List((gpRanks, "gpr"), (tsprRankScores, "tspr"), (ptsprRankScores, "ptspr"))
 
-    val weightings = List(new NoSearchWeighting(), new LinearWeighting(0.1))
+    val weightings = List(new NoSearchWeighting(), new LinearWeighting(0.3), new CustomWeighting(0.1), new SearchOnlyWeighting())
 
     //compute result for different ranks and different weights
     allRanks.foreach {

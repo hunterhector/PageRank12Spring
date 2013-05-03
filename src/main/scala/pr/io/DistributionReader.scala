@@ -10,7 +10,18 @@ import java.io.File
  * Date: 5/1/13
  * Time: 3:19 PM
  */
+
+/**
+ * A reader that read the distribution file
+ * This reader can read both the two distribution files
+ */
 class DistributionReader extends Logging{
+
+  /**
+   * Read from the provided file
+   * @param userTopicDistroFile
+   * @return  Multi layer map, first key is uid, second key is qid, last map is the distribution by topic
+   */
     def fromFile(userTopicDistroFile:File) = {
         Source.fromFile(userTopicDistroFile).getLines().foldLeft(Map[Int,Map[Int,Map[Int,Double]]]())(
           (user2Topic, line)=>{

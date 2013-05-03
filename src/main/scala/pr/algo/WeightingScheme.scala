@@ -6,6 +6,10 @@ package pr.algo
  * Date: 5/1/13
  * Time: 10:54 PM
  */
+/**
+ * Parent class for weighting scheme
+ * All method should extend this to define a new weighting scheme
+ */
 trait WeightingScheme {
     def name:String
     def getWeightedScore(prScore:Double,searchScore:Double):Double

@@ -6,10 +6,15 @@ package pr.algo
  * Date: 5/2/13
  * Time: 11:48 PM
  */
-class CustomWeighting extends WeightingScheme {
+
+/**
+ * The geograpic average method weighting
+ * @param w
+ */
+class CustomWeighting(w:Double) extends WeightingScheme {
   def name: String = "cm"
 
   def getWeightedScore(prScore: Double, searchScore: Double): Double = {
-    if (prScore == 0.0 || searchScore == 0.0) 0.0 else 1/(1/prScore + 1/searchScore)
-  }
+      math.pow(prScore,w) * math.pow(math.exp(searchScore),1-w)
+   }
 }

@@ -10,7 +10,16 @@ import scala.io.Source
  * Date: 5/1/13
  * Time: 10:35 PM
  */
+
+/**
+ * Reader for the search scores
+ */
 class SearchScoreReader extends Logging {
+  /**
+   * Read the scores from a source directory
+   * @param scoreDir
+   * @return list of scores indexed by the user-query pair
+   */
   def fromDirectory(scoreDir: File) = {
     if (!scoreDir.isDirectory) {
       throw new IllegalArgumentException("Not a directory")

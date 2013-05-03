@@ -6,6 +6,10 @@ package pr.algo
  * Date: 5/1/13
  * Time: 10:57 PM
  */
+
+/**
+ * A dummy weighting scheme that always return the pagerank score
+ */
 class NoSearchWeighting extends  WeightingScheme{
   def getWeightedScore(prScore: Double, searchScore: Double):Double = {
     return prScore
